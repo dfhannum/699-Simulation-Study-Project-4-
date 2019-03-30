@@ -1,5 +1,5 @@
 ---
- title: "Working_code"
+title: "Working_code"
 author: "Douglas Hannum"
 date: "3/30/2019"
 output: html_document
@@ -7,5 +7,32 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
 ```
+
+Design Question 2
+Cancers of the blood, such as leukemia and multiple myeloma, that are unresponsive to other forms of treatment, can be treated with an allogeneic hematopoietic stem cell transplant (alloHSCT), in which the stem cells come from a genetically-matched donor, usually a sibling.
+
+However, the percentage of matching is often imperfect, leading to the immune system (T cells) in the alloHSCT (graft) and the remaining immune system in the recipient (host) to fight each other. Acute graft- versus-host disease (aGVHD) is the name of this immune reaction if it occurs within 100 days of alloHSCT. Acute GVHD occurs in 40-50% of alloHSCT recipients, and the skin, gut, and liver are the organ systems most affected. Acute GVHD is one of the leading causes of early death in HSCT recipients and few approaches are available to either prevent or treat aGVHD. The most common approach for treatment is heavy-dose steroids, which present patients with other serious side effects even if the aGVHD is eliminated.
+
+The process of alloHSCT has been shown to result in alteration of the intestinal microbiome, the bacterial community that lives in the human intestine that is believed to be central to gut health. Thus, it is hoped that treatments that directly work to maintain the intestinal microbiome will thereby lead to a reduced incidence of aGVHD in alloHSCT patients.
+
+It is hypothesized that increased consumption of potato starch will work to increase or maintain levels of butyrate, which is a short-chain fatty acid that plays numerous roles in the intestinal microbiome. You are asked to help design a one-arm clinical trial, in which all enrolled alloHSCT patients will ingest 40g of starch each day for up to 100 days in hopes of preventing aGVHD from developing.
+
+Information pertinent to the design: historically, the median time-to-onset of aGVHD is 28 days, with an interquartile range of [7, 56] days.
+
+1. Historically, the median time-to-onset of aGVHD is 28 days, with an interquartile range of [7, 56] days.
+
+1. Approximately 15% of patients will experience graft failure, relapse of cancer, or death by Day 100 and will not be observable for aGVHD. Assume that dietary starch has no impact on any of these outcomes.
+
+1. Approximately 20% of patients will discontinue taking starch for a variety of reasons unrelated to aGVHD.
+
+Specific questions to address:
+
+1. How many patients need to be enrolled to reduce the 50% historical rate of aGVHD to each of 40%,35%, and 30%? Assume power of 0.80 and a Type I error rate of 0.05.
+
+1. It is possible that the study should be terminated early because the treatment is appearing to be ineffective. Assume that a rate of 50% would be evidence of ineffectiveness. How would you design the study to include one interim analysis of futility, and how does this affect the sample size you found in (1) if no interim analysis were used?
+
+
+##Creating the distribution 
 
