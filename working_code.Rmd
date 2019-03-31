@@ -9,6 +9,8 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 library(ggplot2)
 library(ReIns)
+library(survival)
+library(ggfortify)
 ```
 
 Design Question 2
@@ -114,18 +116,20 @@ power[,1] <- rep(n,3)
 pvalue <- rep(NA, samples)
 probs <- c(.40,.35,.30)
 
-for (p in 1:permutations){
-        for (k in 1:length(probs)){
-                for (i in 1:length(n)){
-                        for (j in 1:samples){
-                                x <- rbinom(n[i], 1, .5)
-                                y <- rbinom(n[i], 1, probs[k])
-                                pvalue[j] <- t.test(x,y)$p.value
-                        }
-                        power[i +(k-1)*length(n),2 +p] <- sum(pvalue < 0.05)/(samples)
-                }
-        }
-}
+#Don't want this to accidentally run again
+
+# for (p in 1:permutations){
+#         for (k in 1:length(probs)){
+#                 for (i in 1:length(n)){
+#                         for (j in 1:samples){
+#                                 x <- rbinom(n[i], 1, .5)
+#                                 y <- rbinom(n[i], 1, probs[k])
+#                                 pvalue[j] <- t.test(x,y)$p.value
+#                         }
+#                         power[i +(k-1)*length(n),2 +p] <- sum(pvalue < 0.05)/(samples)
+#                 }
+#         }
+# }
 power_samples <- power[,3:1002]
 power$power_mean <- rowMeans(power[,3:1002])
 
@@ -139,5 +143,88 @@ for (i in 1:dim(power)[1]){
 ggplot(data = power, aes(x = `Sample Size`, y = power_mean, colour = Delta)) +
         geom_point() + geom_line() + 
         geom_errorbar(aes(x = `Sample Size`,ymin = power_lower, ymax = power_upper))
+```
+
+```{r back to first way}
+lambda <- seq(.02,.03, by = .0001)
+mtx <- as.data.frame(matrix(ncol = 4, nrow = length(lambda)))
+colnames(mtx) <- c('lambda','1st qu.','Median','3rd qu.')
+mtx$lambda <- lambda
+
+for (i in 1:length(lambda)){
+        sum <- summary(rtexp(1000,lambda[i], endpoint = 100))
+        mtx[i,2:4] <- sum[c(2,3,5)]
+}
+
+#Solved lambda for the median theoretically
+lambda <- 0.0203821
+
+summary(rtexp(10000,lambda, endpoint = 100))
+```
+
+#Building the Simulation
+
+```{r setting up data frame}
+#Gives me a number of random observations (x) from the truncated exponential dist
+rdist <- function(x){
+        rtexp(x, lambda, endpoint = 100)
+}
+
+#A function to create the data frames, n is the sample size, p is the 
+#disease prevalence
+
+dataf <- function(n,p){
+        df <- as.data.frame(matrix(ncol = 2, nrow = n, rep(c(200,0), each = n)))
+        df[1:round(n*p,0),1] <- rdist(round(n*p,0))
+        df[1:round(n*p,0),2] <- 1
+        colnames(df) <- c('Time','Event')
+        return (df)
+}
+
+#Seeing if the survival curve contains 0.50 in its CI at time = 100
+
+surv_sig <- function (df){
+        fit <- survfit(Surv(Time, Event) ~1, data = df)
+        l <- summary(fit, times = 100)$lower
+        return(l)
+}
+
+samples <- 100
+vect <- rep(NA, samples)
+for (i in 1:samples){
+        df <- dataf(80,.35)
+        vect[i] <- surv_sig(df)
+}
+```
+
+```{r putting it together}
+sample_power <- function(samples = 100, p, l = 40 , u = 140 , by = 10){
+        n <- seq(l,u, by = by)
+        
+        data <- as.data.frame(matrix(ncol = 2, nrow = length(n), 
+                                     c(n, rep(0,length(n)))))
+        
+        colnames(data) <- c('Sample Size','Power')
+        
+        for (i in 1:length(n)){
+                vect <- rep(NA,samples)
+                for (j in 1:samples){
+                        df <- dataf(n[i],p)
+                        vect[j] <- surv_sig (df)
+                }
+                data[i,2] <- round(mean(vect),3)
+        }
+        return (data)
+}
+
+
+for (i in 1:length(n)){
+        vect <- rep(NA,samples)
+        for (j in 1:samples){
+                df <- dataf(n[i],p)
+                        vect[j] <- surv_sig (df)
+        }
+        data[i,2] <- mean(vect)
+}
 ```
 
