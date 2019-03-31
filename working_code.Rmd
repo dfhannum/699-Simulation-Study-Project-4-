@@ -166,7 +166,7 @@ summary(rtexp(10000,lambda, endpoint = 100))
 
 ```{r setting up data frame}
 #Gives me a number of random observations (x) from the truncated exponential dist
-rdist <- function(x){
+rdist <- function(x = 1){
         rtexp(x, lambda, endpoint = 100)
 }
 
@@ -175,9 +175,11 @@ rdist <- function(x){
 
 dataf <- function(n,p){
         df <- as.data.frame(matrix(ncol = 2, nrow = n, rep(c(200,0), each = n)))
-        df[1:round(n*p,0),1] <- rdist(round(n*p,0))
-        df[1:round(n*p,0),2] <- 1
         colnames(df) <- c('Time','Event')
+        
+        df$Event <- rbinom(n,1,p)
+        df[df$Event == 1,]$Time <- rdist(sum(df$Event))
+        
         return (df)
 }
 
@@ -186,19 +188,12 @@ dataf <- function(n,p){
 surv_sig <- function (df){
         fit <- survfit(Surv(Time, Event) ~1, data = df)
         l <- summary(fit, times = 100)$lower
-        return(l)
-}
-
-samples <- 100
-vect <- rep(NA, samples)
-for (i in 1:samples){
-        df <- dataf(80,.35)
-        vect[i] <- surv_sig(df)
+        return(l > 0.50)
 }
 ```
 
 ```{r putting it together}
-sample_power <- function(samples = 100, p, l = 40 , u = 140 , by = 10){
+sample_power <- function(p, samples = 100, l = 40 , u = 140 , by = 10){
         n <- seq(l,u, by = by)
         
         data <- as.data.frame(matrix(ncol = 2, nrow = length(n), 
