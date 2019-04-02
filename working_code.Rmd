@@ -11,6 +11,7 @@ library(ggplot2)
 library(ReIns)
 library(survival)
 library(ggfortify)
+library(svMisc)
 ```
 
 Design Question 2
@@ -193,21 +194,25 @@ surv_sig <- function (df){
 ```
 
 ```{r putting it together}
-sample_power <- function(p, samples = 100, l = 40 , u = 140 , by = 10){
+sample_power <- function(p, samples = 1000, l = 40 , u = 210 , by = 10, perm = 1){
         n <- seq(l,u, by = by)
         
-        data <- as.data.frame(matrix(ncol = 2, nrow = length(n), 
-                                     c(n, rep(0,length(n)))))
+        data <- as.data.frame(matrix(ncol = 1+perm, nrow = length(n), 
+                                     c(n, rep(0,length(n)*perm))))
         
-        colnames(data) <- c('Sample Size','Power')
+        colnames(data) <- c('Sample Size',paste0('Power',1:perm))
         
-        for (i in 1:length(n)){
-                vect <- rep(NA,samples)
-                for (j in 1:samples){
-                        df <- dataf(n[i],p)
-                        vect[j] <- surv_sig (df)
+        
+        for(k in 1:perm){
+                for (i in 1:length(n)){
+                        progress(i)
+                        vect <- rep(NA,samples)
+                        for (j in 1:samples){
+                                df <- dataf(n[i],p)
+                                vect[j] <- surv_sig (df)
+                        }
+                        data[i,1+k] <- round(mean(vect),4)
                 }
-                data[i,2] <- round(mean(vect),3)
         }
         return (data)
 }
@@ -221,5 +226,84 @@ for (i in 1:length(n)){
         }
         data[i,2] <- mean(vect)
 }
+```
+
+```{r demo}
+start <- Sys.time()
+power.40 <- sample_power(.4)
+power.30 <- sample_power(.3)
+power.35 <- sample_power(.35)
+end <- Sys.time()
+
+power <- rbind(power.40, power.30)
+power <- rbind(power, power.35)
+power$Rate <- rep(c('0.40','0.30','0.35'), each = dim(power.40)[1])
+
+ggplot(data = power, aes(x = `Sample Size`, y = Power1, colour = Rate)) +
+        geom_point() + geom_line() + ylab ('Power') +
+        geom_hline(yintercept = .8, linetype = 2)
+#ggsave('./images/surv1', device = 'png', height = 4, width = 6, units = 'in')
+```
+
+```{r demo w/ more permutations}
+# start <- Sys.time()
+# power.40 <- sample_power(.4, perm = 50)
+# power.30 <- sample_power(.3, perm = 50)
+# power.35 <- sample_power(.35, perm = 50)
+# end <- Sys.time()
+
+end - start
+
+power50 <- rbind(power.40, power.30)
+power50 <- rbind(power50, power.35)
+power50$rate <- rep(c('0.40','0.30','0.35'), each = dim(power.40)[1])
+permutations <- power50[,grepl('Power', colnames(power50))]
+permutations$mean <- rowMeans(permutations)
+permutations$sd <- NA
+
+for (i in 1:dim(permutations)[1]){
+        permutations$sd[i] <- sd(permutations[i,])
+}
+permutations$upper <- permutations$mean - 1.96*permutations$sd
+permutations$lower <- permutations$mean + 1.96*permutations$sd
+
+permutations$upper2 <- NA
+permutations$lower2 <- NA
+
+for (i in 1:dim(permutations)[1]){
+        permutations$upper2[i] <- as.numeric(quantile(permutations[i,1:50], .975))
+        permutations$lower2[i] <- as.numeric(quantile(permutations[i,1:50], .025))
+}
+
+power50_ <- cbind(power50, permutations[,51:56])
+
+
+ggplot(data = power50_, aes(x = `Sample Size`, y = mean, color = rate)) +
+        #geom_errorbar(aes(x = `Sample Size`, ymin = as.numeric(lower2), ymax = as.numeric(upper2))) +
+        geom_ribbon(aes(ymin = lower2, ymax = upper2), alpha = 0.3) +
+        geom_point() + geom_line() + geom_hline(yintercept = .8, 
+                                                linetype = 'dashed',
+                                                color = 'black') +
+        ylab('Mean Power')
+        
+#ggsave('./images/sample2', device = 'png', height = 4, width = 6, units = 'in')        
+```
+
+```{r}
+#Only one permutation but with a larger sample and more sample sizes
+one <- sample_power(p = 0.40, by = 2, l = 35)
+two <- sample_power(p = 0.35, by = 2, l = 35)
+three <- sample_power(p = 0.30, by = 2, l = 35)
+
+trial3 <- rbind(one,two)
+trial3 <- rbind(trial3, three)
+trial3$Rate <- rep(c('0.40','0.35','0.30'), each = dim(one)[1])
+
+ggplot(data = trial3, aes (x = `Sample Size`, y = Power1, colour = Rate)) + 
+        geom_point() + geom_line() + geom_smooth() +
+        geom_hline(yintercept = .8, linetype =2) +
+        ylab ('Power')
+
+#ggsave('./images/sample3', device = 'png', height = 4, width = 6, units = 'in')
 ```
 
