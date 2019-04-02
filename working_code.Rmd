@@ -307,3 +307,41 @@ ggplot(data = trial3, aes (x = `Sample Size`, y = Power1, colour = Rate)) +
 #ggsave('./images/sample3', device = 'png', height = 4, width = 6, units = 'in')
 ```
 
+```{r binomiallyl view}
+samples <- 1000
+n <- seq(40,210, by = 5)
+permutations <- 100
+
+power <-as.data.frame(matrix(ncol = permutations + 2, nrow = length(n)*3))
+colnames(power) <- c('Sample Size','Rate', paste0('Power_',1:permutations))
+power[,2] <- rep(c('0.40','0.35','0.30'), each = length(n))
+
+power[,1] <- rep(n,3)
+pvalue <- rep(NA, samples)
+probs <- c(.40,.35,.30)
+
+power[,1:2] <- lapply(power[,1:2], as.numeric)
+
+for (i in 1:dim(power)[1]){
+        progress(i)
+        for (k in 1:permutations){
+                
+                for (j in 1:samples){
+                        x <- rbinom(power[i,1], 1, .5)
+                        y <- rbinom(power[i,1], 1, 1-power[i,2])
+                        pvalue[j] <- t.test(x,y)$p.value
+                        
+                }
+                power[i,k+2] <- sum(pvalue < 0.05)/samples
+        }
+}
+
+
+
+for (i in 1:samples){
+       x <- rbinom(n, 1, .5)
+       y <- rbinom(n, 1, .4)
+       test[i] <- t.test(x,y)$p.value
+}
+```
+
