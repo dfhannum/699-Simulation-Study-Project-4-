@@ -336,12 +336,33 @@ for (i in 1:dim(power)[1]){
         }
 }
 
+bpower <- power
+bpower$Power <- rowMeans(bpower[,3:103])
 
+bpower$lower <- NA
+bpower$upper <- NA
 
-for (i in 1:samples){
-       x <- rbinom(n, 1, .5)
-       y <- rbinom(n, 1, .4)
-       test[i] <- t.test(x,y)$p.value
+for (i in 1:dim(bpower)[1]){
+        bpower$lower[i] <- quantile(bpower[i,2:52], .025)
+        bpower$upper[i] <- quantile(bpower[i,2:52], .975)
 }
+
+
+ggplot(data = bpower, aes (x = `Sample Size`, y = Power, colour = as.factor(Rate))) + geom_point() +
+        geom_ribbon(aes(ymin = as.numeric(lower), ymax = as.numeric(upper)), 
+                    fill = 'grey70', alpha = 0.3) +
+        geom_line() + 
+        ylab('Power')
+        
+```
+
+This seems really low
+
+```{r binom practice}
+x <- rbinom(100,1,.5)
+y <- rbinom(100,1,.4)
+t.test(x,y)$p.value
+
+bpower[100:105,100:105]
 ```
 
