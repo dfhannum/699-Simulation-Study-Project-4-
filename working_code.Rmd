@@ -12,6 +12,8 @@ library(ReIns)
 library(survival)
 library(ggfortify)
 library(svMisc)
+library(survminer)
+library(GGally)
 ```
 
 Design Question 2
@@ -364,5 +366,57 @@ y <- rbinom(100,1,.4)
 t.test(x,y)$p.value
 
 bpower[100:105,100:105]
+```
+
+```{r truncated exponential function}
+w <- rdist(1000)
+summary(w)
+wd <- as.data.frame(matrix(ncol = 2, nrow = 1000, c(w, 1:1000)))
+wd <- wd[order(wd$V1),]
+
+ggplot(data = wd, aes(x = V1)) + 
+        geom_density() + ylab ('Density') + xlab ('Time to Event') +
+        ggtitle('Truncated Exponential Distribution') +
+        theme(plot.title = element_text(hjust = 0.5)) +
+        theme_bw()
+#ggsave('./images/tr_exp_distr.png', device = 'png', units = 'in',
+#       width = 6, height = 4)
+```
+
+```{r survival plot for ppt}
+df1 <- dataf(80, .35)
+df1$Event[1] <- 1
+
+fit1 <- survfit(Surv(Time, Event) ~1, data = df1)
+ss <- subset(surv_summary(fit1), time < 100)
+ggsurv <- ggsurvplot (ss, main = "One Simulation (n = 80, rate = 0.35)",
+                      conf.int = T, risk.table = T, risk.table.col = 'strata',
+                      ggtheme = theme_bw())
+ggsurv
+
+# ggsave('./images/smple_km_plot.png', device = 'png', units = 'in', 
+#        height = 3, width = 6)
+```
+
+```{r random truncated normal distribution}
+library(truncnorm)
+rdistn <- function(x = 1){
+        rtruncnorm(x, a = 0, b = 100, mean = 50, sd = 25)
+}
+
+wn <- rdistn(1000)
+summary(wn)
+wnd <- as.data.frame(matrix(ncol = 2, nrow = 1000, c(wn, 1:1000)))
+wnd <- wnd[order(wnd$V1),]
+
+ggplot(data = wnd, aes(x = V1)) + 
+        geom_density() + ylab ('Density') + xlab ('Time to Event') +
+        ggtitle('Truncated Normal Distribution') +
+        theme(plot.title = element_text(hjust = 0.5)) +
+        theme_bw()
+
+# ggsave('./images/tr_norm_distr.png', device = 'png', units = 'in',
+#       width = 6, height = 4)
+summary(wn)
 ```
 
