@@ -14,6 +14,7 @@ library(ggfortify)
 library(svMisc)
 library(survminer)
 library(GGally)
+library(truncnorm)
 ```
 
 Design Question 2
@@ -196,7 +197,7 @@ surv_sig <- function (df){
 ```
 
 ```{r putting it together}
-sample_power <- function(p, samples = 1000, l = 40 , u = 210 , by = 10, perm = 1){
+sample_power <- function(p = 1, samples = 1000, l = 40 , u = 210 , by = 10, perm = 1){
         n <- seq(l,u, by = by)
         
         data <- as.data.frame(matrix(ncol = 1+perm, nrow = length(n), 
@@ -399,7 +400,7 @@ ggsurv
 ```
 
 ```{r random truncated normal distribution}
-library(truncnorm)
+
 rdistn <- function(x = 1){
         rtruncnorm(x, a = 0, b = 100, mean = 50, sd = 25)
 }
@@ -418,5 +419,71 @@ ggplot(data = wnd, aes(x = V1)) +
 # ggsave('./images/tr_norm_distr.png', device = 'png', units = 'in',
 #       width = 6, height = 4)
 summary(wn)
+```
+
+```{r adding in censoring}
+rdist <- function(x = 1){
+        rtexp(x, lambda, endpoint = 100)
+}
+rdistn <- function(x = 1){
+        rtruncnorm(x, a = 0, b = 100, mean = 50, sd = 25)
+}
+datafc <- function(n,p){
+        df <- as.data.frame(matrix(ncol = 4, nrow = n, rep(c(200,0), each = n)))
+        colnames(df) <- c('Time1','Event1', 'Time2','Event2')
+        
+        df$Event1 <- rbinom(n,1,p)
+        df[df$Event1 == 1,]$Time1 <- rdist(sum(df$Event1))
+        
+        df$Event2 <- rbinom(n,1,.8)
+        df[df$Event2 == 0,]$Time2 <- rdistn(n-sum(df$Event2))
+        
+        df$Time <- NA
+        df$Time <- ifelse(df$Time1 < df$Time2, df$Time <- df$Time1, df$Time <- df$Time2)
+        df$Event <- ifelse(df$Time ==df$Time1, df$Event1, df$Event2)
+        
+        return (df)
+}
+
+#Seeing if the survival curve contains 0.50 in its CI at time = 100
+
+surv_sig <- function (df){
+        fit <- survfit(Surv(Time, Event) ~1, data = df)
+        l <- summary(fit, times = 100)$lower
+        return(l > 0.50)
+}
+sample_power_c <- function(p = c(.40,.35,.3), samples = 10, l = 40 , u = 100,
+                         by = 10){
+        
+        n <- seq(l, u, by = by)
+        
+        data <- as.data.frame(matrix(ncol = 3, nrow = length(n)*length(p),0))
+        
+        colnames(data) <- c('Sample Size', 'Rate', 'Power')
+        data$`Sample Size` <- rep(n,3)
+        data$Rate <- as.factor(rep(p, each = length(n)))
+        
+        for (k in 1:length(p)){
+                for (i in 1:length(n)){
+                        
+                        vect <- rep(NA,samples)
+                        for (j in 1:samples){
+                                df <- datafc(n[i],p[k])
+                                vect[j] <- surv_sig(df)
+                        }
+                        data[length(n)*(k-1) + i, 3] <- sum(vect)/samples
+                }
+        }
+        return (data)
+}
+
+
+```
+
+```{r sample power}
+kl <- sample_power_c(samples = 1000, l = 35, u = 210, by = 5)
+ggplot(data = kl, aes(x = `Sample Size`, y = Power, colour = Rate)) +
+        geom_point() + geom_line() +
+        geom_hline(yintercept = .80, colour = 'black', linetype = 2)
 ```
 
