@@ -482,8 +482,12 @@ sample_power_c <- function(p = c(.40,.35,.3), samples = 10, l = 40 , u = 100,
 
 ```{r sample power}
 kl <- sample_power_c(samples = 10000, l = 35, u = 210, by = 5)
-ggplot(data = kl, aes(x = `Sample Size`, y = Power, colour = Rate)) +
+write.csv(kl, './10k_simulation.csv')
+
+kl$SampleSizeInflated <- kl$`Sample Size`/.85
+ggplot(data = kl, aes(x = SampleSizeInflated, y = Power, colour = Rate)) +
         geom_point() + geom_line() +
-        geom_hline(yintercept = .80, colour = 'black', linetype = 2)
+        geom_hline(yintercept = .80, colour = 'black', linetype = 2) +
+        xlab ('Sample Size') + theme_bw()
 ```
 
