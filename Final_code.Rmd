@@ -1,0 +1,304 @@
+---
+title: "Final_code"
+author: "Douglas Hannum"
+date: "4/9/2019"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
+library(ReIns)
+library(survival)
+library(ggfortify)
+library(svMisc)
+library(survminer)
+library(GGally)
+library(truncnorm)
+```
+
+Design Question 2
+Cancers of the blood, such as leukemia and multiple myeloma, that are unresponsive to other forms of treatment, can be treated with an allogeneic hematopoietic stem cell transplant (alloHSCT), in which the stem cells come from a genetically-matched donor, usually a sibling.
+
+However, the percentage of matching is often imperfect, leading to the immune system (T cells) in the alloHSCT (graft) and the remaining immune system in the recipient (host) to fight each other. Acute graft- versus-host disease (aGVHD) is the name of this immune reaction if it occurs within 100 days of alloHSCT. Acute GVHD occurs in 40-50% of alloHSCT recipients, and the skin, gut, and liver are the organ systems most affected. Acute GVHD is one of the leading causes of early death in HSCT recipients and few approaches are available to either prevent or treat aGVHD. The most common approach for treatment is heavy-dose steroids, which present patients with other serious side effects even if the aGVHD is eliminated.
+
+The process of alloHSCT has been shown to result in alteration of the intestinal microbiome, the bacterial community that lives in the human intestine that is believed to be central to gut health. Thus, it is hoped that treatments that directly work to maintain the intestinal microbiome will thereby lead to a reduced incidence of aGVHD in alloHSCT patients.
+
+It is hypothesized that increased consumption of potato starch will work to increase or maintain levels of butyrate, which is a short-chain fatty acid that plays numerous roles in the intestinal microbiome. You are asked to help design a one-arm clinical trial, in which all enrolled alloHSCT patients will ingest 40g of starch each day for up to 100 days in hopes of preventing aGVHD from developing.
+
+Information pertinent to the design: historically, the median time-to-onset of aGVHD is 28 days, with an interquartile range of [7, 56] days.
+
+1. Historically, the median time-to-onset of aGVHD is 28 days, with an interquartile range of [7, 56] days.
+
+1. Approximately 15% of patients will experience graft failure, relapse of cancer, or death by Day 100 and will not be observable for aGVHD. Assume that dietary starch has no impact on any of these outcomes.
+
+1. Approximately 20% of patients will discontinue taking starch for a variety of reasons unrelated to aGVHD.
+
+Specific questions to address:
+
+1. How many patients need to be enrolled to reduce the 50% historical rate of aGVHD to each of 40%,35%, and 30%? Assume power of 0.80 and a Type I error rate of 0.05.
+
+1. It is possible that the study should be terminated early because the treatment is appearing to be ineffective. Assume that a rate of 50% would be evidence of ineffectiveness. How would you design the study to include one interim analysis of futility, and how does this affect the sample size you found in (1) if no interim analysis were used?
+
+
+#Creating Functions for the Simulations
+
+```{r distributions}
+#Theoretically solved lamda for the median, in the truncated exp funct
+lambda <- 0.0203821
+
+#Gives a number of random observations (x) from the truncated exponential distr
+rdist <- function(x = 1){
+        rtexp(x, lambda, endpoint = 100)
+}
+
+#Random number from the truncated normal distribution
+rdistn <- function(x = 1){
+        rtruncnorm(x, a = 0, b = 100, mean = 50, sd = 25)
+}
+```
+
+```{r creating the data frames}
+#A function to create the data frame, n is the sample size, p is the disease
+#prevalence
+
+#Dataframe with no censoring -> Intent to treat dataframe
+dataf <- function(n,p){
+        #n is the number of samples being tested
+        #p is the disease rate
+        
+        #Setting up the null dataframe
+        df <- as.data.frame(matrix(ncol = 2, nrow = n, rep(c(200,0), each = n)))
+        colnames(df) <- c('Time','Event')
+        
+        #Using a random binomial to determine if an event has occured
+        df$Event <- rbinom(n,1,p)
+        #Using the truncated exponential distr. to get the time for events
+        df[df$Event == 1,]$Time <- rdist(sum(df$Event))
+        
+        return (df)
+}
+
+#A dataframe using censoring to model the non-compliance of people to the trtmnt
+datafc <- function(n,p){
+        #n is the number of samples being tested
+        #p is the disease rate
+        df <- as.data.frame(matrix(ncol = 4, nrow = n,
+                                   rep(c(200,0), each = n)))
+        colnames(df) <- c('Time1','Event1', 'Time2','Event2')
+        
+        #Event one is getting the GVHD
+        df$Event1 <- rbinom(n,1,p)
+        df[df$Event1 == 1,]$Time1 <- rdist(sum(df$Event1))
+        
+        #Event two is getting censored for non-compliance
+        df$Event2 <- rbinom(n,1,.8)
+        df[df$Event2 == 0,]$Time2 <- rdistn(n-sum(df$Event2))
+        
+        #Set the actual time for the minimum time between time 1 and 2
+        df$Time <- NA
+        df$Time <- ifelse(df$Time1 < df$Time2, df$Time <- df$Time1, 
+                          df$Time <- df$Time2)
+        df$Event <- ifelse(df$Time ==df$Time1, df$Event1, df$Event2)
+        
+        return (df)
+}
+```
+
+```{r survival function function}
+
+#Seeing if the survival curve contains 0.50 in its CI at time = 100
+surv_sig <- function (df, confint = 0.95){
+        #Confint variable lets me vary the alpha to get the desired alpha
+        #of 0.05
+        
+        #Fitting a survival curve
+        fit <- survfit(Surv(Time, Event) ~1, data = df, conf.int = confint)
+        #Seeing if the 95% CI passes historic threshold = 0.50
+        l <- summary(fit, times = 100)$lower
+        return(l > 0.50)
+}
+```
+
+```{r sample power functions}
+#Power calculations for intent to treat
+sample_power <- function(p = 1, samples = 1000, l = 40 , u = 210 , 
+                         by = 10, perm = 1){
+        #Creating sequence of sample sizes to be tested
+        n <- seq(l,u, by = by)
+        
+        #Creating an empty power dataframe
+        data <- as.data.frame(matrix(ncol = 1+perm, nrow = length(n), 
+                                     c(n, rep(0,length(n)*perm))))
+        
+        colnames(data) <- c('Sample Size',paste0('Power',1:perm))
+        
+        
+        for(k in 1:perm){
+                #Going through all the different sample sizes
+                for (i in 1:length(n)){
+                        #Creating an empty vector to store results
+                        vect <- rep(NA,samples)
+                        #Going through the designated simulations
+                        for (j in 1:samples){
+                                #Create df to be test
+                                df <- dataf(n[i],p)
+                                #Test the df for significance
+                                vect[j] <- surv_sig (df)
+                        }
+                        #Append power resuls
+                        data[i,1+k] <- round(mean(vect),4)
+                }
+        }
+        return (data)
+}
+
+#Power calculation with censoring
+sample_power_c <- function(p = c(.40,.35,.3), samples = 10, l = 40 , u = 100,
+                         by = 10, confint = 0.94){
+        # p is the disease rates to be tested
+        # samples refers to the number of simulations
+        # l is the lower bound of the sample size
+        # u is the upper bound of the sample size
+        # by is the interval between sample sizes to be tested
+        # confint is the confidence interval applied to the logrank test
+        
+        
+        n <- seq(l, u, by = by)
+        
+        data <- as.data.frame(matrix(ncol = 3, nrow = length(n)*length(p),0))
+        
+        colnames(data) <- c('Sample Size', 'Rate', 'Power')
+        data$`Sample Size` <- rep(n,length(p))
+        data$Rate <- as.factor(rep(p, each = length(n)))
+        
+        for (k in 1:length(p)){
+                for (i in 1:length(n)){
+                        
+                        vect <- rep(NA,samples)
+                        for (j in 1:samples){
+                                df <- datafc(n[i],p[k])
+                                vect[j] <- surv_sig(df, confint)
+                        }
+                        data[length(n)*(k-1) + i, 3] <- sum(vect)/samples
+                }
+        }
+        return (data)
+}
+
+#Sample power with an interim analysis
+sample_power_int <- function(p = .5, samples = 10, l = 40 , u = 100,
+                         by = 10, confint1 = 0.94, confint2 = 0.96){
+        # two different variables to control the alpha for the interim and
+        # for the final analysis
+        n <- seq(l, u, by = by)
+        
+        data <- as.data.frame(matrix(ncol = 5, nrow = length(n)*length(p),0))
+        
+        colnames(data) <- c('Sample Size', 'Rate', 'Power','Rint',
+                            'Rfin')
+        
+        data$`Sample Size` <- rep(n,length(p))
+        data$Rate <- as.factor(rep(p, each = length(n)))
+        
+        for (k in 1:length(p)){
+                for (i in 1:length(n)){
+                        
+                        vect <- rep(NA,samples)
+                        
+                        #Creating empty vectors to track where trials fial
+                        Rfin <- 0
+                        Rint <- 0
+                        
+                        #Interim setting n = 2
+                        for (j in 1:samples){
+                                #Testing the data halfway through enrollment
+                                df <- datafc(n[i]/2,p[k])
+                                sig <- surv_sig(df, confint1)
+                                
+                                #Seeing if the interim fails
+                                if (sig == 0){
+                                        vect[j] <- sig
+                                        Rint <- Rint + 1
+                                }
+                                # If the interim does not fail then do the rest
+                                else{
+                                        df <- rbind(df,datafc(n[i]/2,p[k]))
+                                        sig <- surv_sig(df,confint2)
+                                        vect[j] <- sig
+                                }
+                        }
+                        data[length(n)*(k-1) + i, 3] <- sum(vect)/samples
+                        data[length(n)*(k-1) + i, 4] <- Rint
+                        data[length(n)*(k-1) + i, 5] <- samples - Rint - sum(vect)
+                }
+        }
+        return (data)
+}
+```
+
+#Look at the distributions
+
+##Truncated Exponential Distribution
+
+```{r truncated exponential function}
+#Taking a 1000 random samples
+w <- rdist(1000)
+summary(w)
+wd <- as.data.frame(matrix(ncol = 2, nrow = 1000, c(w, 1:1000)))
+wd <- wd[order(wd$V1),]
+
+#Plot the distribution
+ggplot(data = wd, aes(x = V1)) + 
+        geom_density() + ylab ('Density') + xlab ('Time to Event') +
+        ggtitle('Truncated Exponential Distribution') +
+        theme(plot.title = element_text(hjust = 0.5)) +
+        theme_bw()
+#ggsave('./images/tr_exp_distr.png', device = 'png', units = 'in',
+#       width = 6, height = 4)
+```
+
+##Truncated Normal Distribution
+
+```{r random truncated normal distribution}
+
+rdistn <- function(x = 1){
+        rtruncnorm(x, a = 0, b = 100, mean = 50, sd = 25)
+}
+
+wn <- rdistn(1000)
+summary(wn)
+wnd <- as.data.frame(matrix(ncol = 2, nrow = 1000, c(wn, 1:1000)))
+wnd <- wnd[order(wnd$V1),]
+
+#Plot the distribution
+ggplot(data = wnd, aes(x = V1)) + 
+        geom_density() + ylab ('Density') + xlab ('Time to Event') +
+        ggtitle('Truncated Normal Distribution') +
+        theme(plot.title = element_text(hjust = 0.5)) +
+        theme_bw()
+
+# ggsave('./images/tr_norm_distr.png', device = 'png', units = 'in',
+#       width = 6, height = 4)
+summary(wn)
+```
+
+#Example Survival Plot
+
+```{r survival plot for ppt}
+#Setting the dataframe for sample size 80 and disease rate 0.35
+df1 <- dataf(80, .35)
+#Fit the data to a survival curve
+fit1 <- survfit(Surv(Time, Event) ~1, data = df1)
+
+#Subset the data to only look at times less than 100
+ss <- subset(surv_summary(fit1), time < 100)
+#Plot the survival curve
+ggsurv <- ggsurvplot (ss, main = "One Simulation (n = 80, rate = 0.35)",
+                      conf.int = T, risk.table = T, risk.table.col = 'strata',
+                      ggtheme = theme_bw())
+ggsurv
+
+# ggsave('./images/smple_km_plot.png', device = 'png', units = 'in', 
+#        height = 3, width = 6)
+```
