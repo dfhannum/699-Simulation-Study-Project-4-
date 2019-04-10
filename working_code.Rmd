@@ -43,7 +43,7 @@ Specific questions to address:
 
 ##Creating the distribution 
 
-```{r distribution}
+```{r distribution, include = F}
 #Going to use an exponential distribution for the survival function. Truncated at 100
 
 #CDF 1 - exp(-lambda*x) / (1 - exp(-100*lambda))
@@ -80,7 +80,7 @@ for (i in 1:50000){
 summary(w)
 quantile(w, c(.025,.975))
 
-# Point estimate for the percentage of events we will miss is .0840 (.0720, 0.0965)
+# Point estimate for the percentage of events we will miss is .084 (.07, 0.097)
 
 #Sample Size
 ss <- 30:130
@@ -96,7 +96,7 @@ z <- rep(NA, samples)
 z <- log(1-x)/(-lambda)
 ```
 
-```{r another way}
+```{r another way, include = F}
 #example
 n <- 40
 samples <- 100
@@ -150,26 +150,18 @@ ggplot(data = power, aes(x = `Sample Size`, y = power_mean, colour = Delta)) +
 ```
 
 ```{r back to first way}
-lambda <- seq(.02,.03, by = .0001)
-mtx <- as.data.frame(matrix(ncol = 4, nrow = length(lambda)))
-colnames(mtx) <- c('lambda','1st qu.','Median','3rd qu.')
-mtx$lambda <- lambda
-
-for (i in 1:length(lambda)){
-        sum <- summary(rtexp(1000,lambda[i], endpoint = 100))
-        mtx[i,2:4] <- sum[c(2,3,5)]
-}
 
 #Solved lambda for the median theoretically
 lambda <- 0.0203821
 
+#Checking distribution
 summary(rtexp(10000,lambda, endpoint = 100))
 ```
 
 #Building the Simulation
 
 ```{r setting up data frame}
-#Gives me a number of random observations (x) from the truncated exponential dist
+#Gives a number of random observations (x) from the truncated exponential dist
 rdist <- function(x = 1){
         rtexp(x, lambda, endpoint = 100)
 }
@@ -178,18 +170,21 @@ rdist <- function(x = 1){
 #disease prevalence
 
 dataf <- function(n,p){
+        #Setting up the null dataframe
         df <- as.data.frame(matrix(ncol = 2, nrow = n, rep(c(200,0), each = n)))
         colnames(df) <- c('Time','Event')
         
+        #Using a random binomial to determine if an event has occured
         df$Event <- rbinom(n,1,p)
+        #Using the truncated exponential distr. to get the time for events
         df[df$Event == 1,]$Time <- rdist(sum(df$Event))
         
         return (df)
 }
 
 #Seeing if the survival curve contains 0.50 in its CI at time = 100
-
 surv_sig <- function (df){
+        
         fit <- survfit(Surv(Time, Event) ~1, data = df)
         l <- summary(fit, times = 100)$lower
         return(l > 0.50)
@@ -447,20 +442,20 @@ datafc <- function(n,p){
 
 #Seeing if the survival curve contains 0.50 in its CI at time = 100
 
-surv_sig <- function (df){
-        fit <- survfit(Surv(Time, Event) ~1, data = df)
+surv_sig <- function (df, confint = 0.95){
+        fit <- survfit(Surv(Time, Event) ~1, data = df, conf.int = confint)
         l <- summary(fit, times = 100)$lower
         return(l > 0.50)
 }
 sample_power_c <- function(p = c(.40,.35,.3), samples = 10, l = 40 , u = 100,
-                         by = 10){
+                         by = 10, confint = 0.94){
         
         n <- seq(l, u, by = by)
         
         data <- as.data.frame(matrix(ncol = 3, nrow = length(n)*length(p),0))
         
         colnames(data) <- c('Sample Size', 'Rate', 'Power')
-        data$`Sample Size` <- rep(n,3)
+        data$`Sample Size` <- rep(n,length(p))
         data$Rate <- as.factor(rep(p, each = length(n)))
         
         for (k in 1:length(p)){
@@ -469,25 +464,95 @@ sample_power_c <- function(p = c(.40,.35,.3), samples = 10, l = 40 , u = 100,
                         vect <- rep(NA,samples)
                         for (j in 1:samples){
                                 df <- datafc(n[i],p[k])
-                                vect[j] <- surv_sig(df)
+                                vect[j] <- surv_sig(df, confint)
                         }
                         data[length(n)*(k-1) + i, 3] <- sum(vect)/samples
                 }
         }
         return (data)
 }
-
-
 ```
 
 ```{r sample power}
-kl <- sample_power_c(samples = 10000, l = 35, u = 210, by = 5)
-write.csv(kl, './10k_simulation.csv')
+# kl <- sample_power_c(samples = 10000, l = 35, u = 210, by = 5)
+# write.csv(kl, './10k_simulation.csv')
 
 kl$SampleSizeInflated <- kl$`Sample Size`/.85
 ggplot(data = kl, aes(x = SampleSizeInflated, y = Power, colour = Rate)) +
         geom_point() + geom_line() +
         geom_hline(yintercept = .80, colour = 'black', linetype = 2) +
         xlab ('Sample Size') + theme_bw()
+```
+
+```{r testing alpha}
+alpha1000 <- sample_power_c(samples = 1000, p = 0.50)
+alpha1000_ci_94 <- sample_power_c(samples = 1000, p = 0.50, confint = .94)
+alpha1000_ci_942 <- sample_power_c(samples = 5000, p = 0.50, confint = .94)
+alpha3 <- sample_power_c(samples = 1000, p = .5, confint = .94, l = 40, u = 210, by = 5)
+summary(alpha3$Power)
+alpha4 <- sample_power_c(samples = 10000, p = .5, confint = .94, l = 40, u = 210, by = 5)
+summary(alpha4$Power)
+
+alpha5 <- sample_power_c(samples = 1000, p = .5, confint = .935, l = 40, u = 100, by = 5)
+summary(alpha5$Power)
+alpha6 <- sample_power_c(samples = 10000, p = .5, confint = .935, l = 40, u = 100, by = 5)
+summary(alpha6$Power)
+alpha7 <- sample_power_c(samples = 10000, p = .5, confint = .935, l = 40, u = 215, by = 5)
+ggplot(data = alpha7, aes(x = Power)) + geom_histogram()
+```
+
+It looks like a 94% CI gives me a power of about 0.05
+
+```{r}
+
+sample_power_int <- function(p = .5, samples = 10, l = 40 , u = 100,
+                         by = 10, confint1 = 0.94, confint2 = 0.96){
+        
+        n <- seq(l, u, by = by)
+        
+        data <- as.data.frame(matrix(ncol = 5, nrow = length(n)*length(p),0))
+        
+        colnames(data) <- c('Sample Size', 'Rate', 'Power','Rint',
+                            'Rfin')
+        
+        data$`Sample Size` <- rep(n,length(p))
+        data$Rate <- as.factor(rep(p, each = length(n)))
+        
+        for (k in 1:length(p)){
+                for (i in 1:length(n)){
+                        
+                        vect <- rep(NA,samples)
+                        Rfin <- 0
+                        Rint <- 0
+                        
+                        #Interim setting n = 2
+                        for (j in 1:samples){
+                                df <- datafc(n[i]/2,p[k])
+                                sig <- surv_sig(df, confint1)
+                                if (sig == 0){
+                                        vect[j] <- sig
+                                        Rint <- Rint + 1
+                                }
+                                else{
+                                        df <- rbind(df,datafc(n[i]/2,p[k]))
+                                        sig <- surv_sig(df,confint2)
+                                        vect[j] <- sig
+                                        # if (sig == 0){
+                                        #         Rfin <- Rfin +1
+                                        # }
+                                }
+                        }
+                        data[length(n)*(k-1) + i, 3] <- sum(vect)/samples
+                        data[length(n)*(k-1) + i, 4] <- Rint
+                        data[length(n)*(k-1) + i, 5] <- samples - Rint - sum(vect)
+                }
+        }
+        return (data)
+}
+
+alpha_sim <- sample_power_int(samples = 1000, confint1 = .85, confint2 = .85)
+alpha_sim
+alpha_sim_sig <- sample_power_int(samples = 1000, confint1 = .85, confint2 = .85, p = .3)
+alpha_sim_sig
 ```
 
