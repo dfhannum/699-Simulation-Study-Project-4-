@@ -193,6 +193,7 @@ sample_power_c <- function(p = c(.40,.35,.3), samples = 10, l = 40 , u = 100,
 #Sample power with an interim analysis
 sample_power_int <- function(p = .5, samples = 10, l = 40 , u = 100,
                          by = 10, confint1 = 0.85, confint2 = 0.85, c = TRUE){
+        
         # two different variables to control the alpha for the interim and
         # for the final analysis
         n <- seq(l, u, by = by)
@@ -218,9 +219,9 @@ sample_power_int <- function(p = .5, samples = 10, l = 40 , u = 100,
                         for (j in 1:samples){
                                 #Testing the data halfway through enrollment
                                 if (c == T){
-                                        df <- datafc(n[i],p[k])
+                                        df <- datafc(n[i]/2,p[k])
                                 } else {
-                                        df <- dataf(n[i], p[k])
+                                        df <- dataf(n[i]/2, p[k])
                                 }
                                 
                                 sig <- surv_sig(df, confint1)
@@ -390,4 +391,116 @@ sample_power_c(p = 0.35, u = 100, by = 10, c = T)
 sample_power_int( p = .35, samples = 100, l = 40, u = 100, by = 10,
                   c = T)
 ```
+
+```{r power sets}
+# h <- sample_power(p = c(0.4), samples = 250, l = 40, u = 210, by = 5)
+# j <- sample_power(p = .3, samples = 250, l = 40, u = 210, by = 5)
+# i <- sample_power(p = .35, samples = 250, l = 40, u = 210, by = 5)
+Cn_In_sample <- sample_power_c(samples = 1000, l = 30, u = 220, by = 3, c = F)
+Cy_In_sample <- sample_power_c(samples = 1000, l = 30, u = 220, by = 3, c = T)
+
+```
+
+```{r interim power tests}
+start <- Sys.time()
+# Cn_Iy_sample40 <- sample_power_int(samples = 1000, l = 30, u = 250, by = 4, c = F, p = .4)
+# Cn_Iy_sample35 <- sample_power_int(samples = 1000, l = 30, u = 250, by = 4, c = F, p = .35)
+# Cn_Iy_sample30 <- sample_power_int(samples = 1000, l = 30, u = 250, by = 4, c = F, p = .3)
+Cy_Iy_sample40 <- sample_power_int(samples = 1000, l = 30, u = 270, by = 4, c = T, p = .4)
+Cy_Iy_sample35 <- sample_power_int(samples = 1000, l = 30, u = 270, by = 4, c = T, p = .35)
+Cy_Iy_sample30 <- sample_power_int(samples = 1000, l = 30, u = 270, by = 4, c = T, p = .3)
+
+#Cn_Iy_sample <- rbind(Cn_Iy_sample40, Cn_Iy_sample35, Cn_Iy_sample30)
+Cy_Iy_sample <- rbind(Cy_Iy_sample40, Cy_Iy_sample35, Cy_Iy_sample30)
+end <- Sys.time()
+end-start
+```
+
+```{r}
+powerplot <- function(df, x,w,z,title = 'Such a Cool Title'){
+        df$SSInflated <- df$`Sample Size`/.85
+        ggplot(data = df, aes (x = SSInflated, y = Power, color = Rate)) +
+                geom_point() + geom_smooth(se = F) +
+                geom_hline (yintercept = .80, linetype = 2, color = 'black') + 
+                ggtitle (title) + xlab ('Sample Size') + 
+                scale_color_manual(values = c('orange','purple','red')) +
+                geom_segment (aes(x = x, xend = x, y = .2, yend = .8), 
+                              linetype = 2, color = 'orange') +
+                geom_segment (aes(x = w, xend = w, y = .2, yend = .8), 
+                              linetype = 2, color = 'purple') +
+                geom_segment (aes(x = z, xend = z, y = .2, yend = .8), 
+                              linetype = 2, color = 'red')
+                
+}
+
+powerplot(Cn_In_sample, 41, 81, 191, "ITT With No Interim Analysis")
+# x-intercepts are : 41, 81, 191
+ggsave('./images/itt_no_interim.png', device = 'png', height = 3, width = 6)
+
+powerplot(Cy_In_sample, 44, 89, 213, "Censored With No Interim Analysis")
+# x-intercepts are : 44, 89, 213
+ggsave('./images/cen_no_interim.png', device = 'png', height = 3, width = 6)
+
+Cn_Iy_sample$Rate <- factor(Cn_Iy_sample$Rate, levels = c(.30,.35,.4))
+powerplot(Cn_Iy_sample, 66, 118, 277, "ITT With Interim Analysis")
+# x-intercepts are : 66, 118, 277
+ggsave('./images/itt_yes_interim.png', device = 'png', height = 3, width = 6)
+
+Cy_Iy_sample$Rate <- factor(Cy_Iy_sample$Rate, levels = c(.30,.35,.4))
+powerplot(Cy_Iy_sample, 72, 131, 310, "Censored with Interim Analysis")
+# x-intercepts are : 72, 131, 310
+ggsave('./images/cen_yes_interim.png', device = 'png', height = 3, width = 6)
+
+# how I got the smooth outputs
+p <- ggplot(data = Cy_Iy_sample, aes (x = `Sample Size`/.85, y = Power, 
+                                      color = Rate)) + 
+        geom_point() + stat_smooth()
+ggplot_build(p)$data[[2]]
+
+
+```
+
+Looking at building one ggplot for one rate and the four different types of power calculations, in order to get an idea of the differences in power.
+```{r building one plot with the four different types}
+Cn_In_sample$Sim <- 'Cn_In'
+Cy_In_sample$Sim <- 'Cy_In'
+Cn_Iy_sample$Sim <- 'Cn_Iy'
+Cy_Iy_sample$Sim <- 'Cy_Iy'
+
+power30 <- rbind(Cn_In_sample[Cn_In_sample$Rate == .3,],
+                 Cy_In_sample[Cy_In_sample$Rate == .3,])
+power30 <- rbind(power30,
+                 Cn_Iy_sample[Cn_Iy_sample$Rate == .3,-c(4,5)])
+power30 <- rbind(power30,
+                 Cy_Iy_sample[Cy_Iy_sample$Rate == .3,-c(4,5)])
+power30$SSInflated <- power30$`Sample Size`/.85
+ggplot(power30, aes(x = SSInflated, y = Power, color = Sim)) + 
+        geom_point() + geom_smooth(se = F)
+```
+
+```{r power40}
+power40 <- rbind(Cn_In_sample[Cn_In_sample$Rate == .4,],
+                 Cy_In_sample[Cy_In_sample$Rate == .4,])
+power40 <- rbind(power40,
+                 Cn_Iy_sample[Cn_Iy_sample$Rate == .4,-c(4,5)])
+power40 <- rbind(power40,
+                 Cy_Iy_sample[Cy_Iy_sample$Rate == .4,-c(4,5)])
+power40$SSInflated <- power40$`Sample Size`/.85
+ggplot(power40, aes(x = SSInflated, y = Power, color = Sim)) + 
+        geom_point() + geom_smooth(se = F)
+```
+
+```{r power 35}
+power35 <- rbind(Cn_In_sample[Cn_In_sample$Rate == .35,],
+                 Cy_In_sample[Cy_In_sample$Rate == .35,])
+power35 <- rbind(power35,
+                 Cn_Iy_sample[Cn_Iy_sample$Rate == .35,-c(4,5)])
+power35 <- rbind(power35,
+                 Cy_Iy_sample[Cy_Iy_sample$Rate == .35,-c(4,5)])
+power35$SSInflated <- power35$`Sample Size`/.85
+ggplot(power35, aes(x = SSInflated, y = Power, color = Sim)) + 
+        geom_point() + geom_smooth(se = F)
+```
+
+
 

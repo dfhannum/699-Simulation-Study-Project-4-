@@ -33,7 +33,7 @@ ui <- fluidPage(
                        value = T),
          checkboxInput('i',
                        "Interim Analysis", 
-                       value = F),
+                       value = T),
          submitButton()
       ),
       
@@ -48,6 +48,14 @@ ui <- fluidPage(
 server <- function(input, output) {
    
    output$power <- renderText({
+           library(ggplot2)
+           library(ReIns)
+           library(survival)
+           library(ggfortify)
+           library(svMisc)
+           library(survminer)
+           library(GGally)
+           library(truncnorm)
       # generate bins based on input$bins from ui.R
            lambda <- 0.0203821
            
@@ -178,9 +186,9 @@ server <- function(input, output) {
                                    for (j in 1:samples){
                                            #Testing the data halfway through enrollment
                                            if (c == T){
-                                                   df <- datafc(n[i],p[k])
+                                                   df <- datafc(n[i]/2,p[k])
                                            } else {
-                                                   df <- dataf(n[i], p[k])
+                                                   df <- dataf(n[i]/2, p[k])
                                            }
                                            
                                            sig <- surv_sig(df, confint1)
@@ -210,7 +218,7 @@ server <- function(input, output) {
                    }
                    return (data)
            }
-           power_only <- function (n, p = .5, samples = 10000, c = F, i = F){
+           power_only <- function (n, p = .5, samples = 1000, c = F, i = F){
                    #Decreasing by the 0.15 that will dropout
                    n <- n * .85
                    
