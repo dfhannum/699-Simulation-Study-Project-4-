@@ -15,31 +15,8 @@ library(svMisc)
 library(survminer)
 library(GGally)
 library(truncnorm)
+library(plyr)
 ```
-
-Design Question 2
-Cancers of the blood, such as leukemia and multiple myeloma, that are unresponsive to other forms of treatment, can be treated with an allogeneic hematopoietic stem cell transplant (alloHSCT), in which the stem cells come from a genetically-matched donor, usually a sibling.
-
-However, the percentage of matching is often imperfect, leading to the immune system (T cells) in the alloHSCT (graft) and the remaining immune system in the recipient (host) to fight each other. Acute graft- versus-host disease (aGVHD) is the name of this immune reaction if it occurs within 100 days of alloHSCT. Acute GVHD occurs in 40-50% of alloHSCT recipients, and the skin, gut, and liver are the organ systems most affected. Acute GVHD is one of the leading causes of early death in HSCT recipients and few approaches are available to either prevent or treat aGVHD. The most common approach for treatment is heavy-dose steroids, which present patients with other serious side effects even if the aGVHD is eliminated.
-
-The process of alloHSCT has been shown to result in alteration of the intestinal microbiome, the bacterial community that lives in the human intestine that is believed to be central to gut health. Thus, it is hoped that treatments that directly work to maintain the intestinal microbiome will thereby lead to a reduced incidence of aGVHD in alloHSCT patients.
-
-It is hypothesized that increased consumption of potato starch will work to increase or maintain levels of butyrate, which is a short-chain fatty acid that plays numerous roles in the intestinal microbiome. You are asked to help design a one-arm clinical trial, in which all enrolled alloHSCT patients will ingest 40g of starch each day for up to 100 days in hopes of preventing aGVHD from developing.
-
-Information pertinent to the design: historically, the median time-to-onset of aGVHD is 28 days, with an interquartile range of [7, 56] days.
-
-1. Historically, the median time-to-onset of aGVHD is 28 days, with an interquartile range of [7, 56] days.
-
-1. Approximately 15% of patients will experience graft failure, relapse of cancer, or death by Day 100 and will not be observable for aGVHD. Assume that dietary starch has no impact on any of these outcomes.
-
-1. Approximately 20% of patients will discontinue taking starch for a variety of reasons unrelated to aGVHD.
-
-Specific questions to address:
-
-1. How many patients need to be enrolled to reduce the 50% historical rate of aGVHD to each of 40%,35%, and 30%? Assume power of 0.80 and a Type I error rate of 0.05.
-
-1. It is possible that the study should be terminated early because the treatment is appearing to be ineffective. Assume that a rate of 50% would be evidence of ineffectiveness. How would you design the study to include one interim analysis of futility, and how does this affect the sample size you found in (1) if no interim analysis were used?
-
 
 #Creating Functions for the Simulations
 
@@ -252,7 +229,7 @@ sample_power_int <- function(p = .5, samples = 10, l = 40 , u = 100,
         return (data)
 }
 
-
+# A function to get either a dataframe or figure output
 spower <- function (p = c(.40,.35,.3), samples = 1000, l = 40, u = 100, by = 10,
                     c = F, i = F, PowerOfInterest = .80, plot = T){
 
@@ -290,7 +267,7 @@ spower <- function (p = c(.40,.35,.3), samples = 1000, l = 40, u = 100, by = 10,
         }
 }
 
-#If I just want a power output
+#If I just want a power output, for R-Shiny app
 power_only <- function (n, p = .5, samples = 10000, c = F, i = F){
         #Decreasing by the 0.15 that will dropout
         n <- n * .85
@@ -350,7 +327,6 @@ rdistn <- function(x = 1){
 }
 
 wn <- rdistn(1000)
-summary(wn)
 wnd <- as.data.frame(matrix(ncol = 2, nrow = 1000, c(wn, 1:1000)))
 wnd <- wnd[order(wnd$V1),]
 
@@ -386,16 +362,16 @@ ggsurv
 #        height = 3, width = 6)
 ```
 
-```{r practice stuff}
+```{r practice stuff, include = F}
 sample_power_c(p = 0.35, u = 100, by = 10, c = T)
 sample_power_int( p = .35, samples = 100, l = 40, u = 100, by = 10,
                   c = T)
 ```
 
+# Simulations
+These are the simulations I will be using for my paper.  They are labeled based on whether or not they include censored data and/or an interim analysis
 ```{r power sets}
-# h <- sample_power(p = c(0.4), samples = 250, l = 40, u = 210, by = 5)
-# j <- sample_power(p = .3, samples = 250, l = 40, u = 210, by = 5)
-# i <- sample_power(p = .35, samples = 250, l = 40, u = 210, by = 5)
+
 Cn_In_sample <- sample_power_c(samples = 1000, l = 30, u = 220, by = 3, c = F)
 Cy_In_sample <- sample_power_c(samples = 1000, l = 30, u = 220, by = 3, c = T)
 
@@ -403,27 +379,42 @@ Cy_In_sample <- sample_power_c(samples = 1000, l = 30, u = 220, by = 3, c = T)
 
 ```{r interim power tests}
 start <- Sys.time()
-# Cn_Iy_sample40 <- sample_power_int(samples = 1000, l = 30, u = 250, by = 4, c = F, p = .4)
-# Cn_Iy_sample35 <- sample_power_int(samples = 1000, l = 30, u = 250, by = 4, c = F, p = .35)
-# Cn_Iy_sample30 <- sample_power_int(samples = 1000, l = 30, u = 250, by = 4, c = F, p = .3)
-Cy_Iy_sample40 <- sample_power_int(samples = 1000, l = 30, u = 270, by = 4, c = T, p = .4)
-Cy_Iy_sample35 <- sample_power_int(samples = 1000, l = 30, u = 270, by = 4, c = T, p = .35)
-Cy_Iy_sample30 <- sample_power_int(samples = 1000, l = 30, u = 270, by = 4, c = T, p = .3)
+Cn_Iy_sample40 <- sample_power_int(samples = 1000, l = 30, u = 250, by = 4, 
+                                   c = F, p = .4)
+Cn_Iy_sample35 <- sample_power_int(samples = 1000, l = 30, u = 250, by = 4, 
+                                   c = F, p = .35)
+Cn_Iy_sample30 <- sample_power_int(samples = 1000, l = 30, u = 250, by = 4, 
+                                   c = F, p = .3)
+Cy_Iy_sample40 <- sample_power_int(samples = 1000, l = 30, u = 270, by = 4, 
+                                   c = T, p = .4)
+Cy_Iy_sample35 <- sample_power_int(samples = 1000, l = 30, u = 270, by = 4, 
+                                   c = T, p = .35)
+Cy_Iy_sample30 <- sample_power_int(samples = 1000, l = 30, u = 270, by = 4, 
+                                   c = T, p = .3)
 
-#Cn_Iy_sample <- rbind(Cn_Iy_sample40, Cn_Iy_sample35, Cn_Iy_sample30)
+Cn_Iy_sample <- rbind(Cn_Iy_sample40, Cn_Iy_sample35, Cn_Iy_sample30)
 Cy_Iy_sample <- rbind(Cy_Iy_sample40, Cy_Iy_sample35, Cy_Iy_sample30)
 end <- Sys.time()
 end-start
 ```
 
-```{r}
+```{r powerplots}
+# GGplot function to expedite things
 powerplot <- function(df, x,w,z,title = 'Such a Cool Title'){
+        # Accounting for the 15% dropout rate
         df$SSInflated <- df$`Sample Size`/.85
+        
         ggplot(data = df, aes (x = SSInflated, y = Power, color = Rate)) +
+                # Getting points and a smooth curve to fit them
                 geom_point() + geom_smooth(se = F) +
+                
+                # Creating a horizontal line to elucidate the 80% power 
                 geom_hline (yintercept = .80, linetype = 2, color = 'black') + 
                 ggtitle (title) + xlab ('Sample Size') + 
                 scale_color_manual(values = c('orange','purple','red')) +
+                
+                # Creating line segments to visualize where the sample size
+                # crosses the 80% power cutoff
                 geom_segment (aes(x = x, xend = x, y = .2, yend = .8), 
                               linetype = 2, color = 'orange') +
                 geom_segment (aes(x = w, xend = w, y = .2, yend = .8), 
@@ -435,38 +426,43 @@ powerplot <- function(df, x,w,z,title = 'Such a Cool Title'){
 
 powerplot(Cn_In_sample, 41, 81, 191, "ITT With No Interim Analysis")
 # x-intercepts are : 41, 81, 191
-ggsave('./images/itt_no_interim.png', device = 'png', height = 3, width = 6)
+#ggsave('./images/itt_no_interim.png', device = 'png', height = 3, width = 6)
 
 powerplot(Cy_In_sample, 44, 89, 213, "Censored With No Interim Analysis")
 # x-intercepts are : 44, 89, 213
-ggsave('./images/cen_no_interim.png', device = 'png', height = 3, width = 6)
+#ggsave('./images/cen_no_interim.png', device = 'png', height = 3, width = 6)
 
 Cn_Iy_sample$Rate <- factor(Cn_Iy_sample$Rate, levels = c(.30,.35,.4))
 powerplot(Cn_Iy_sample, 66, 118, 277, "ITT With Interim Analysis")
 # x-intercepts are : 66, 118, 277
-ggsave('./images/itt_yes_interim.png', device = 'png', height = 3, width = 6)
+#ggsave('./images/itt_yes_interim.png', device = 'png', height = 3, width = 6)
 
 Cy_Iy_sample$Rate <- factor(Cy_Iy_sample$Rate, levels = c(.30,.35,.4))
 powerplot(Cy_Iy_sample, 72, 131, 310, "Censored with Interim Analysis")
 # x-intercepts are : 72, 131, 310
-ggsave('./images/cen_yes_interim.png', device = 'png', height = 3, width = 6)
+#ggsave('./images/cen_yes_interim.png', device = 'png', height = 3, width = 6)
 
-# how I got the smooth outputs
+# how I got the sample sizes where the smooth line crosses 80% power
 p <- ggplot(data = Cy_Iy_sample, aes (x = `Sample Size`/.85, y = Power, 
                                       color = Rate)) + 
         geom_point() + stat_smooth()
-ggplot_build(p)$data[[2]]
+#ggplot_build(p)$data[[2]]
 
 
 ```
 
-Looking at building one ggplot for one rate and the four different types of power calculations, in order to get an idea of the differences in power.
-```{r building one plot with the four different types}
+#Alternative plots
+
+Looking at building one ggplot for one rate and the four different types of power calculations, in order to get an idea of the differences in power.  This was doen for each rate but only one is included in this document.  All of them look relatively similar, with all the lines being proportional to one another.
+```{r building one plot with the four different types, echo = F}
+#Labeling the different studies
 Cn_In_sample$Sim <- 'Cn_In'
 Cy_In_sample$Sim <- 'Cy_In'
 Cn_Iy_sample$Sim <- 'Cn_Iy'
 Cy_Iy_sample$Sim <- 'Cy_Iy'
+```
 
+```{r power30, include = F}
 power30 <- rbind(Cn_In_sample[Cn_In_sample$Rate == .3,],
                  Cy_In_sample[Cy_In_sample$Rate == .3,])
 power30 <- rbind(power30,
@@ -478,7 +474,7 @@ ggplot(power30, aes(x = SSInflated, y = Power, color = Sim)) +
         geom_point() + geom_smooth(se = F)
 ```
 
-```{r power40}
+```{r power40, include = F}
 power40 <- rbind(Cn_In_sample[Cn_In_sample$Rate == .4,],
                  Cy_In_sample[Cy_In_sample$Rate == .4,])
 power40 <- rbind(power40,
@@ -498,9 +494,34 @@ power35 <- rbind(power35,
 power35 <- rbind(power35,
                  Cy_Iy_sample[Cy_Iy_sample$Rate == .35,-c(4,5)])
 power35$SSInflated <- power35$`Sample Size`/.85
-ggplot(power35, aes(x = SSInflated, y = Power, color = Sim)) + 
-        geom_point() + geom_smooth(se = F)
+
+power35$Simulation <- mapvalues(power35$Sim, 
+                                from = c('Cn_In', 'Cy_In', 'Cn_Iy', 'Cy_Iy'),
+                                to = c('ITT w/o Interim', 
+                                       'Censored w/o Interim', 'ITT w/ Interim',
+                                       'Censored w/ Interim'))
+power35$Simulation <- factor(power35$Simulation, 
+                             levels = c('ITT w/o Interim',
+                                        'Censored w/o Interim',
+                                        'ITT w/ Interim',
+                                        'Censored w/ Interim'))
+
+ggplot(power35, aes(x = SSInflated, y = Power, color = Simulation)) + 
+        geom_point() + geom_smooth(se = F) +
+        ggtitle ('Rate of 0.35') +
+        xlab ('Sample Size')
+ggsave('./images/power35.png', device = 'png', width = 6, height = 3, 
+       units = 'in')
 ```
 
+# Rejection in interim or final analysis
+
+```{r rejection ratio}
+# For the ITT analysis
+sum(Cn_Iy_sample$Rint) / sum(Cn_Iy_sample$Rfin)
+
+# For the Censored analysis
+sum(Cy_Iy_sample$Rint) / sum(Cy_Iy_sample$Rfin)
+```
 
 
